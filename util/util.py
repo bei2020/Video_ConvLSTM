@@ -1,0 +1,59 @@
+import os
+from settings import DATA_DIR
+import logging
+import tensorflow as tf
+from settings import FLAGS
+import numpy as np
+from scipy import misc
+
+def preprocess_data():
+    """split name to file dir"""
+    fnames=os.listdir(DATA_DIR)
+    fs = fnames[0].split('%2F')
+    file_dir = os.path.join(DATA_DIR, fs[0])
+    if not os.path.isdir(file_dir):
+        os.mkdir(file_dir)
+    if not os.path.isdir(os.path.join(file_dir, fs[1])):
+        os.mkdir(os.path.join(file_dir, fs[1]))
+    for f in fnames:
+        fs = f.split('%2F')
+        if len(fs) == 3:
+            os.rename(os.path.join(DATA_DIR, f), os.path.join(DATA_DIR, fs[0], fs[1], fs[2]))
+
+
+def array2image(dat,dest,post=''):
+    b,s,h,w,_=dat.shape
+    dat=dat.reshape((b,s,h*FLAGS.patch_size,w*FLAGS.patch_size))
+    _,_,h,w=dat.shape
+    if not os.path.exists(dest):
+        os.makedirs(dest)
+    for i in range(b):
+        for j in range(s):
+            image = misc.toimage(dat[i,j].astype(np.uint8), cmin=0, cmax=255)  # to avoid range rescaling
+            misc.imsave(os.path.join(dest, 'batch{}seq{}_{}.jpg'.format(i,j,post)), image)
+
+def print_num_of_total_parameters(output_detail=False, output_to_logging=False):
+    total_parameters = 0
+    parameters_string = ""
+
+    for variable in tf.trainable_variables():
+
+        shape = variable.get_shape()
+        variable_parameters = 1
+        for dim in shape:
+            variable_parameters *= dim.value
+        total_parameters += variable_parameters
+        if len(shape) == 1:
+            parameters_string += ("%s %d, " % (variable.name, variable_parameters))
+        else:
+            parameters_string += ("%s %s=%d, " % (variable.name, str(shape), variable_parameters))
+
+    if output_to_logging:
+        if output_detail:
+            logging.info(parameters_string)
+        logging.info(
+            "Total %d variables, %s params" % (len(tf.trainable_variables()), "{:,}".format(total_parameters)))
+    else:
+        if output_detail:
+            print(parameters_string)
+        print("Total %d variables, %s params" % (len(tf.trainable_variables()), "{:,}".format(total_parameters)))
