@@ -10,7 +10,9 @@ class ConvLSTMNetwork:
         self.hidden_features = [int(x) for x in flags.num_hidden.split(',')]
         self.layers=len(self.hidden_features)
 
+        # model
         self.cnn_size=flags.cnn_size
+        self.channel=flags.patch_size**2*flags.channel
         self.is_training = tf.placeholder(tf.bool, name="is_training")
         self.batch_norm=flags.batch_norm
         self.lr_input = tf.placeholder(tf.float32, shape=[], name="LearningRate")
@@ -20,9 +22,12 @@ class ConvLSTMNetwork:
         self.loss=0
 
         # x input sequence, y output sequence ground truth
-        self.x = tf.placeholder(tf.float32, shape=[None, None, None,None, flags.patch_size**2*flags.channel], name='x')
-        self.y = tf.placeholder(tf.float32, shape=[None, None, None,None, flags.patch_size**2*flags.channel], name="y")
+        self.x = tf.placeholder(tf.float32, shape=[flags.batch_size,flags.seq_len//2 ,flags.height//flags.patch_size,
+                                                   flags.width//flags.patch_size, flags.patch_size**2*flags.channel], name='x')
+        self.y = tf.placeholder(tf.float32, shape=[flags.batch_size,flags.seq_len//2 ,flags.height//flags.patch_size,
+                                                   flags.width//flags.patch_size, flags.patch_size**2*flags.channel], name="y")
         self.y_=None
+        self.nseq=flags.seq_len//2
 
         self.name = self.get_model_name(model_name)
         self.build_graph()
@@ -30,25 +35,30 @@ class ConvLSTMNetwork:
         self.graph = tf.get_default_graph()
 
     def build_graph(self):
-        n_in_feature=self.x.shape[-1]
-        n_out_feature=self.y.shape[-1]
-        nseq=self.x.shape[1]
+        shape=self.x.get_shape().as_list()
+        shape=(shape[0],shape[2],shape[3],shape[4])
+        n_in_feature=shape[-1]
 
-        self.y_=[None]*nseq
+        self.y_=[None]*self.nseq
         # generate one frame for each input frame, share convLSTM layer between frames, link 1st layer hidden state and cell between frames
         H1,C1=None,None # 1st layer
-        for t in range(nseq):
+        for t in range(self.nseq):
             # encoding
             forecast_layers=[None]*self.layers
             in_feat=n_in_feature
-            conl=ConvLSTM(self.cnn_size)
+            conl=ConvLSTM(self.cnn_size,shape)
             h,c=conl.output('enco_conv1',in_feat,self.hidden_features[0],x=self.x[:,t],h=H1,c=C1)
             in_feat=self.hidden_features[0]
-            forecast_layers[0]=copy.deepcopy(conl)
+            forecast_layers[0]=ConvLSTM(self.cnn_size,shape)
+            forecast_layers[0]._forget=tf.Variable(conl._forget)
+            forecast_layers[0]._input= tf.Variable(conl._input)
+            forecast_layers[0]._output=tf.Variable(conl._output)
+            forecast_layers[0]._cell=  tf.Variable(conl._cell)
             H1=h
             C1=c
             for n in range(1,self.layers):
-                conl=ConvLSTM(self.cnn_size)
+                conl=ConvLSTM(self.cnn_size,shape)
+                print('i'*10,in_feat,self.hidden_features[n])
                 h,c=conl.output('enco_conv%d'%(n+1),in_feat,self.hidden_features[n],h=h,c=c)
                 forecast_layers[n]=copy.deepcopy(conl)
                 in_feat=self.hidden_features[n]
@@ -64,7 +74,7 @@ class ConvLSTMNetwork:
             with tf.variable_scope("Concat"):
                 H_concat=tf.concat(H,3,name='H_concat')
             finl=FinalLayer(1)
-            h,_=finl.output('fina_conv',H_concat,total_out_feat,n_out_feature)
+            h,_=finl.output('fina_conv',H_concat,total_out_feat,n_in_feature)
             self.y_[t]=h
         self.y_ = tf.transpose(tf.stack(self.y_), [1,0,2,3,4])
 

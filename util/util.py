@@ -1,4 +1,5 @@
 import os
+import datetime
 from settings import DATA_DIR
 import logging
 import tensorflow as tf
@@ -57,3 +58,7 @@ def print_num_of_total_parameters(output_detail=False, output_to_logging=False):
         if output_detail:
             print(parameters_string)
         print("Total %d variables, %s params" % (len(tf.trainable_variables()), "{:,}".format(total_parameters)))
+
+def get_now_date():
+    d = datetime.datetime.today()
+    return "%s/%s/%s %s:%s:%s" % (d.year, d.month, d.day, d.hour, d.minute, d.second)

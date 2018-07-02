@@ -8,16 +8,16 @@ class ConvLSTM:
       Xingjian, S. H. I., et al. "Convolutional LSTM network: A machine learning approach for precipitation nowcasting." Advances in Neural Information Processing Systems. 2015.
     """
 
-    def __init__(self, cnn_size, cnn_stride=1, weight_init='', weight_dev=1.0, batch_norm=False, dropout_rate=1, is_training=False):
+    def __init__(self, cnn_size,shape, cnn_stride=1, weight_init='', weight_dev=1.0, batch_norm=False, dropout_rate=1, is_training=False):
 
         self.name = ""
         self._forget = None
         self._input = None
         self._output = None
         self._cell = None
-        self.height=0
-        self.width=0
-        self.channels=0
+        self.batch=shape[0]
+        self.height=shape[1]
+        self.width=shape[2]
 
         self.batch_norm = batch_norm
         self.dropout_rate = dropout_rate
@@ -47,7 +47,7 @@ class ConvLSTM:
         else:
             return tf.Variable(bias, name=name)
 
-    def _conv2d(self, input_tensor, weight, stride=1, use_bias=False, use_batch_norm=False, pre_name=""):
+    def _conv2d(self, input_tensor, weight, stride, use_bias=False, use_batch_norm=False, pre_name=""):
         output = tf.nn.conv2d(input_tensor, weight, strides=stride, padding="SAME",
                               name=pre_name + "_conv")
 
@@ -62,14 +62,13 @@ class ConvLSTM:
         """Return hidden state and cell.
             x: input at step t, h: hidden state at last step, c: cell at last step
         """
-        assert not(x or h)
+        assert (x is not None or h is not None)
         with tf.name_scope(name):
             if h is None:
-                batch,self.height,self.width,self.channels=x.shape
-                h = tf.zeros([batch, self.height, self.width, self.channels], dtype=tf.float32)
-                c = tf.zeros([batch, self.height, self.width, self.channels], dtype=tf.float32)
+                h = tf.zeros(tf.shape(x), dtype=tf.float32)
+                c = tf.zeros([self.batch,self.height,self.width,out_features], dtype=tf.float32)
             if x is None:
-                x= tf.zeros([h.shape[0], self.height, self.width, self.channels], dtype=tf.float32)
+                x= tf.zeros(tf.shape(h), dtype=tf.float32)
             Wxi=self._create_weight([self.cnn_size, self.cnn_size, in_features, out_features], stddev=self.weight_dev,
                                              kname=self.weight_init, name='conv_Wxi')
             Whi=self._create_weight([self.cnn_size, self.cnn_size, in_features, out_features], stddev=self.weight_dev,
@@ -86,16 +85,19 @@ class ConvLSTM:
                                     kname=self.weight_init, name='conv_Wxo')
             Who=self._create_weight([self.cnn_size, self.cnn_size, in_features, out_features], stddev=self.weight_dev,
                                     kname=self.weight_init, name='conv_Who')
-            Wci=self._create_weight([1,self.height , self.width, self.channels], stddev=self.weight_dev,
+            Wci=self._create_weight([1,self.height , self.width, out_features], stddev=self.weight_dev,
                                     kname=self.weight_init, name='conv_Wci')
-            Wcf=self._create_weight([1,self.height , self.width, self.channels], stddev=self.weight_dev,
+            Wcf=self._create_weight([1,self.height , self.width, out_features], stddev=self.weight_dev,
                                     kname=self.weight_init, name='conv_Wcf')
-            Wco=self._create_weight([1,self.height , self.width, self.channels], stddev=self.weight_dev,
+            Wco=self._create_weight([1,self.height , self.width, out_features], stddev=self.weight_dev,
                                     kname=self.weight_init, name='conv_Wco')
-            self._input=tf.sigmoid(self._conv2d(x,Wxi)+self._conv2d(h,Whi,use_bias=True)+Wci*c)
-            self._forget=tf.sigmoid(self._conv2d(x,Wxf)+self._conv2d(h,Whf,use_bias=True)+Wcf*c)
-            self._cell=self._forget*c+self._input*tf.tanh(self._conv2d(x,Wxc)+self._conv2d(h,Whc,use_bias=True))
-            self._output=tf.sigmoid(self._conv2d(x,Wxo)+self._conv2d(h,Who,use_bias=True)+Wco*self._cell)
+            stride=[1, self.cnn_stride, self.cnn_stride, 1]
+            print('x'*10,x.shape,'\\n Wxi',Wxi.shape,'\\n h ',h.shape,Whi.shape,'\\n c ', Wci.shape,c.shape)
+            kkk=Wci*c
+            self._input=tf.sigmoid(self._conv2d(x,Wxi,stride=stride)+self._conv2d(h,Whi,use_bias=True,stride=stride)+Wci*c)
+            self._forget=tf.sigmoid(self._conv2d(x,Wxf,stride=stride)+self._conv2d(h,Whf,use_bias=True,stride=stride)+Wcf*c)
+            self._cell=self._forget*c+self._input*tf.tanh(self._conv2d(x,Wxc,stride=stride)+self._conv2d(h,Whc,stride=stride,use_bias=True))
+            self._output=tf.sigmoid(self._conv2d(x,Wxo,stride=stride)+self._conv2d(h,Who,use_bias=True,stride=stride)+Wco*self._cell)
             h=self._output*tf.tanh(self._cell)
 
             return  h,self._cell
