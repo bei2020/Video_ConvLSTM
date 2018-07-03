@@ -1,2 +1,7 @@
 # Neural Scene
-status: test
+
+status: loss did not decrease
+
+### training
+    python experiment_mnist.py 
+    

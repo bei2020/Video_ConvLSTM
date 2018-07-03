@@ -52,7 +52,6 @@ class Trainer:
         while not(self.lr<self.end_lr or self.nbatch>=self.total_batch):
             self.train_batch()
             self.nbatch+=1
-            print('n'*10,self.nbatch)
             if self.nbatch%self.lr_decay_epoch==0:
                 self.lr*=self.lr_decay
             if self.nbatch%self.epoch_evaluate==0:
