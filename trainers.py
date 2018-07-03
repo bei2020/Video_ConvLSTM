@@ -37,7 +37,7 @@ class Trainer:
 
 
     def train_batch(self,batch_x,batch_y):
-        feed_dict = {self.model.x: batch_x, self.model.y: batch_y}
+        feed_dict = {self.model.x: batch_x, self.model.y: batch_y,self.model.is_training:1,self.model.lr_input:self.lr}
         _, loss = self.sess.run([self.model.training_optimizer, self.model.loss], feed_dict=feed_dict)
 
         self.total_loss+=loss
@@ -62,13 +62,13 @@ class Trainer:
         self.save_model()
 
     def evaluate(self):
-        feed_dict = {self.model.x: self.data.x_test}
+        feed_dict = {self.model.x: self.data.x_test,self.model.is_training:0}
         y_=self.sess.run(self.model.y_,feed_dict=feed_dict)
         loss=tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=y_,labels=self.data.y_test))
         return loss
 
     def test(self):
-        feed_dict = {self.model.x: self.data.x_test}
+        feed_dict = {self.model.x: self.data.x_test,self.model.is_training:0}
         y_=self.sess.run(self.model.y_,feed_dict=feed_dict)
         loss=tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=y_,labels=self.data.y_test))
         print('Loss:%f'%loss)

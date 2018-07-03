@@ -10,8 +10,8 @@ def main(not_parsed_args):
     if len(not_parsed_args) > 1:
         print("Unknown args:%s" % not_parsed_args)
         exit()
-    dpt=os.path.join(DATA_DIR,"frame20_seqs1000.npz")
-    testp=os.path.join(DATA_DIR,"frame20_seqs100.npz")
+    dpt=os.path.join(DATA_DIR,FLAGS.data_dir)
+    testp=os.path.join(DATA_DIR,FLAGS.test_dir)
     DL=MnistLoader(dpt,testp)
     md=ConvLSTMNetwork(FLAGS)
     config = tf.ConfigProto()

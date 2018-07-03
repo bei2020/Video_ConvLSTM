@@ -20,6 +20,8 @@ class ConvLSTMNetwork:
         self.beta2 = flags.beta2
         self.epsilon = flags.epsilon
         self.loss=0
+        self.encoding=[None]*self.layers
+        self.forecast=[None]*self.layers
 
         # x input sequence, y output sequence ground truth
         self.x = tf.placeholder(tf.float32, shape=[flags.batch_size,flags.seq_len//2 ,flags.height//flags.patch_size,
@@ -34,47 +36,45 @@ class ConvLSTMNetwork:
         self.build_optimizer()
         self.graph = tf.get_default_graph()
 
-    def build_graph(self):
-        shape=self.x.get_shape().as_list()
-        shape=(shape[0],shape[2],shape[3],shape[4])
-        n_in_feature=shape[-1]
 
+    def build_graph(self):
+        # initial layers
+        shape=self.x.get_shape().as_list()
+        # batch,height,width,channel
+        shape=(shape[0],shape[2],shape[3],shape[4])
+        for k in range(self.layers):
+            self.encoding[k]=ConvLSTM(self.cnn_size,shape,batch_norm=self.batch_norm,is_training=self.is_training)
+            self.encoding[k]._cell = tf.zeros([shape[0],shape[1],shape[2],self.hidden_features[k]], dtype=tf.float32)
+            self.forecast[k]=ConvLSTM(self.cnn_size,shape,batch_norm=self.batch_norm,is_training=self.is_training)
+            self.forecast[k]._cell = tf.zeros([shape[0],shape[1],shape[2],self.hidden_features[k]], dtype=tf.float32)
+        finl=FinalLayer(1,batch_norm=self.batch_norm,is_training=self.is_training)
+
+        n_in_feature=shape[-1]
         self.y_=[None]*self.nseq
-        # generate one frame for each input frame, share convLSTM layer between frames, link 1st layer hidden state and cell between frames
-        H1,C1=None,None # 1st layer
+        # generate one frame for each input frame, share convLSTM layer between frames, link 1st layer hidden state between frames
+        H1=None # 1st layer
+        total_out_feat=sum(self.hidden_features)
         for t in range(self.nseq):
+            print('t'*10,t)
             # encoding
-            forecast_layers=[None]*self.layers
-            in_feat=n_in_feature
-            conl=ConvLSTM(self.cnn_size,shape)
-            h,c=conl.output('enco_conv1',in_feat,self.hidden_features[0],x=self.x[:,t],h=H1,c=C1)
+            h=self.encoding[0].output('enco_conl1',self.hidden_features[0],x=self.x[:,t],h=H1,in_features=n_in_feature,in_features_h=self.hidden_features[0])
             in_feat=self.hidden_features[0]
-            forecast_layers[0]=ConvLSTM(self.cnn_size,shape)
-            forecast_layers[0]._forget=tf.Variable(conl._forget)
-            forecast_layers[0]._input= tf.Variable(conl._input)
-            forecast_layers[0]._output=tf.Variable(conl._output)
-            forecast_layers[0]._cell=  tf.Variable(conl._cell)
             H1=h
-            C1=c
             for n in range(1,self.layers):
-                conl=ConvLSTM(self.cnn_size,shape)
-                print('i'*10,in_feat,self.hidden_features[n])
-                h,c=conl.output('enco_conv%d'%(n+1),in_feat,self.hidden_features[n],h=h,c=c)
-                forecast_layers[n]=copy.deepcopy(conl)
+                print('i'*15,n,in_feat,self.hidden_features[n])
+                h=self.encoding[n].output('enco_conl%d'%(n+1),self.hidden_features[n],h=h,in_features_h=in_feat)
                 in_feat=self.hidden_features[n]
 
             # forecasting
             H=[None]*self.layers
-            total_out_feat=0
             for k in range(self.layers):
-                h,c=forecast_layers[k].output('fore_conv%d'%(k+1),in_feat,self.hidden_features[k],h=h,c=c)
+                h=self.forecast[k].output('fore_conl%d'%(k+1),self.hidden_features[k],h=h,in_features_h=in_feat)
                 in_feat=self.hidden_features[k]
                 H[k]=h
-                total_out_feat+=self.hidden_features[k]
             with tf.variable_scope("Concat"):
                 H_concat=tf.concat(H,3,name='H_concat')
-            finl=FinalLayer(1)
-            h,_=finl.output('fina_conv',H_concat,total_out_feat,n_in_feature)
+
+            h=finl.output('fina_conv',H_concat,total_out_feat,n_in_feature)
             self.y_[t]=h
         self.y_ = tf.transpose(tf.stack(self.y_), [1,0,2,3,4])
 

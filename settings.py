@@ -20,6 +20,8 @@ flags.DEFINE_integer('patch_size', 4, 'patch size on one dimension.')
 flags.DEFINE_integer('channel', 1, 'image channel')
 flags.DEFINE_integer('height', 64, 'image height')
 flags.DEFINE_integer('width', 64, 'image width')
+flags.DEFINE_string('data_dir',"frame20_seqs1000.npz", 'train dir')
+flags.DEFINE_string('test_dir',"frame20_seqs100.npz", 'test dir')
 
 #training
 flags.DEFINE_float('lr', 0.001, 'initial learning rate.')
