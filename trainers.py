@@ -20,7 +20,8 @@ class Trainer:
         self.batch_size=flags.batch_size
         self.epoch_evaluate=flags.epoch_evaluate
         self.total_loss=0
-        self.start_time=None
+        self.start_time = time.time()
+
         self. nbatch=0
         self. total_batch=0
 
@@ -36,22 +37,22 @@ class Trainer:
         self.sess.run(self.init)
 
 
-    def train_batch(self,batch_x,batch_y):
-        feed_dict = {self.model.x: batch_x, self.model.y: batch_y,self.model.is_training:1,self.model.lr_input:self.lr}
+    def train_batch(self):
+        feed_dict = {self.model.x:self.data.x[self.nbatch:self.nbatch+8], self.model.y:self.data.y[self.nbatch:self.nbatch+8],self.model.is_training:1,self.model.lr_input:self.lr}
         _, loss = self.sess.run([self.model.training_optimizer, self.model.loss], feed_dict=feed_dict)
 
         self.total_loss+=loss
 
     def train(self):
-        x_ims,y_ims=self.data
-        nbatches=x_ims.shape[0]
-        self.total_batch=nbatches//self.batch_size+(0,1)[nbatches%self.batch_size>0]
         self.data.load_train()
-        self.data.load_test(size=1)
+        self.data.load_test()
+        nbatches=self.data.x.shape[0]
+        self.total_batch=nbatches//self.batch_size+(0,1)[nbatches%self.batch_size>0]
 
         while not(self.lr<self.end_lr or self.nbatch>=self.total_batch):
-            self.train_batch(self.data.x[self.nbatch:self.nbatch+8],self.data.y[self.nbatch:self.nbatch+8])
+            self.train_batch()
             self.nbatch+=1
+            print('n'*10,self.nbatch)
             if self.nbatch%self.lr_decay_epoch==0:
                 self.lr*=self.lr_decay
             if self.nbatch%self.epoch_evaluate==0:
@@ -62,16 +63,13 @@ class Trainer:
         self.save_model()
 
     def evaluate(self):
-        feed_dict = {self.model.x: self.data.x_test,self.model.is_training:0}
-        y_=self.sess.run(self.model.y_,feed_dict=feed_dict)
-        loss=tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=y_,labels=self.data.y_test))
+        feed_dict = {self.model.x: self.data.x_test,self.model.y:self.data.y_test,self.model.is_training:0}
+        loss=self.sess.run(self.model.loss,feed_dict=feed_dict)
         return loss
 
     def test(self):
-        feed_dict = {self.model.x: self.data.x_test,self.model.is_training:0}
-        y_=self.sess.run(self.model.y_,feed_dict=feed_dict)
-        loss=tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=y_,labels=self.data.y_test))
-        print('Loss:%f'%loss)
+        feed_dict = {self.model.x: self.data.x_test,self.model.y:self.data.y_test,self.model.is_training:0}
+        y_,loss=self.sess.run((self.model.y_,self.model.loss),feed_dict=feed_dict)
         util.array2image(y_,os.path.join(ROOT,self.output_dir),'predict')
         util.array2image(self.data.y_test,os.path.join(ROOT,self.output_dir),'truth')
         logging.info("\n=== [%s] Loss:%f ===" % ( self.data.test_path, loss))
@@ -112,7 +110,7 @@ class Trainer:
         if self.save_loss or self.save_weights or self.save_meta_data:
             self.summary_op = tf.summary.merge_all()
             self.train_writer = tf.summary.FileWriter(self.tf_log_dir + "/train")
-            self.test_writer = tf.summary.FileWriter(self.tf_log_dir + "/test", graph=self.sess.graph)
+            self.test_writer = tf.summary.FileWriter(self.tf_log_dir + "/test")
 
         self.saver = tf.train.Saver(max_to_keep=None)
 

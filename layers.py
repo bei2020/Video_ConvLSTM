@@ -89,19 +89,19 @@ class ConvLSTM:
             stride=[1, self.cnn_stride, self.cnn_stride, 1]
             # print('x'*10,x.shape,'\\n Wxi',Wxi.shape,'\\n h ',h.shape,Whi.shape,'\\n c ',Wci.shape)
             if h is None:
-                print('x'*20,x.get_shape().as_list(),in_features,out_features)
+                # print('x'*20,x.get_shape().as_list(),in_features,out_features)
                 self._input=tf.sigmoid(self._conv2d(x,Wxi,stride=stride,pre_name='Wxi',use_bias=True)+Wci*self._cell)
                 self._forget=tf.sigmoid(self._conv2d(x,Wxf,stride=stride,pre_name='Wxf',use_bias=True)+Wcf*self._cell)
                 self._cell=self._forget*self._cell+self._input*tf.tanh(self._conv2d(x,Wxc,stride=stride,pre_name='Wxc',use_bias=True))
                 self._output=tf.sigmoid(self._conv2d(x,Wxo,stride=stride,pre_name='Wxo',use_bias=True)+Wco*self._cell)
             elif x is None:
-                print('h'*20,h.get_shape().as_list(),in_features_h,out_features)
+                # print('h'*20,h.get_shape().as_list(),in_features_h,out_features)
                 self._input=tf.sigmoid(self._conv2d(h,Whi,use_bias=True,stride=stride,pre_name='Whi')+Wci*self._cell)
                 self._forget=tf.sigmoid(self._conv2d(h,Whf,use_bias=True,stride=stride,pre_name='Whf')+Wcf*self._cell)
                 self._cell=self._forget*self._cell+self._input*tf.tanh(self._conv2d(h,Whc,stride=stride,use_bias=True,pre_name='Whc'))
                 self._output=tf.sigmoid(self._conv2d(h,Who,use_bias=True,stride=stride,pre_name='Who')+Wco*self._cell)
             else:
-                print('xh'*20,x.get_shape().as_list(),in_features,out_features,in_features_h)
+                # print('xh'*20,x.get_shape().as_list(),in_features,out_features,in_features_h)
                 self._input=tf.sigmoid(self._conv2d(x,Wxi,stride=stride,pre_name='Wxi')+self._conv2d(h,Whi,use_bias=True,stride=stride,pre_name='Whi')+Wci*self._cell)
                 self._forget=tf.sigmoid(self._conv2d(x,Wxf,stride=stride,pre_name='Wxf')+self._conv2d(h,Whf,use_bias=True,stride=stride,pre_name='Whf')+Wcf*self._cell)
                 self._cell=self._forget*self._cell+self._input*tf.tanh(self._conv2d(x,Wxc,stride=stride,pre_name='Wxc')+self._conv2d(h,Whc,stride=stride,use_bias=True,pre_name='Whc'))
@@ -159,7 +159,7 @@ class FinalLayer:
     def output(self, name, input,  in_features, out_features):
         """Return output tensor of one unit hidden layer and weight, bias"""
         with tf.name_scope(name):
-            print('f'*20,input.get_shape().as_list(),in_features,out_features)
+            # print('f'*20,input.get_shape().as_list(),in_features,out_features)
             w=self._create_weight([self.cnn_size,self.cnn_size,in_features,out_features])
             out=self._conv2d(input,w,[1, self.cnn_stride, self.cnn_stride, 1],pre_name=name)
             return out

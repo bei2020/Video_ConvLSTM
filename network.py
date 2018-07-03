@@ -1,6 +1,5 @@
 import tensorflow as tf
 from layers import ConvLSTM,FinalLayer
-import copy
 from util import util
 
 class ConvLSTMNetwork:
@@ -24,9 +23,9 @@ class ConvLSTMNetwork:
         self.forecast=[None]*self.layers
 
         # x input sequence, y output sequence ground truth
-        self.x = tf.placeholder(tf.float32, shape=[flags.batch_size,flags.seq_len//2 ,flags.height//flags.patch_size,
+        self.x = tf.placeholder(tf.float32, shape=[None,flags.seq_len//2 ,flags.height//flags.patch_size,
                                                    flags.width//flags.patch_size, flags.patch_size**2*flags.channel], name='x')
-        self.y = tf.placeholder(tf.float32, shape=[flags.batch_size,flags.seq_len//2 ,flags.height//flags.patch_size,
+        self.y = tf.placeholder(tf.float32, shape=[None,flags.seq_len//2 ,flags.height//flags.patch_size,
                                                    flags.width//flags.patch_size, flags.patch_size**2*flags.channel], name="y")
         self.y_=None
         self.nseq=flags.seq_len//2
@@ -44,9 +43,9 @@ class ConvLSTMNetwork:
         shape=(shape[0],shape[2],shape[3],shape[4])
         for k in range(self.layers):
             self.encoding[k]=ConvLSTM(self.cnn_size,shape,batch_norm=self.batch_norm,is_training=self.is_training)
-            self.encoding[k]._cell = tf.zeros([shape[0],shape[1],shape[2],self.hidden_features[k]], dtype=tf.float32)
+            self.encoding[k]._cell = tf.zeros([1,shape[1],shape[2],self.hidden_features[k]], dtype=tf.float32)
             self.forecast[k]=ConvLSTM(self.cnn_size,shape,batch_norm=self.batch_norm,is_training=self.is_training)
-            self.forecast[k]._cell = tf.zeros([shape[0],shape[1],shape[2],self.hidden_features[k]], dtype=tf.float32)
+            self.forecast[k]._cell = tf.zeros([1,shape[1],shape[2],self.hidden_features[k]], dtype=tf.float32)
         finl=FinalLayer(1,batch_norm=self.batch_norm,is_training=self.is_training)
 
         n_in_feature=shape[-1]
@@ -61,7 +60,7 @@ class ConvLSTMNetwork:
             in_feat=self.hidden_features[0]
             H1=h
             for n in range(1,self.layers):
-                print('i'*15,n,in_feat,self.hidden_features[n])
+                # print('i'*15,n,in_feat,self.hidden_features[n])
                 h=self.encoding[n].output('enco_conl%d'%(n+1),self.hidden_features[n],h=h,in_features_h=in_feat)
                 in_feat=self.hidden_features[n]
 
