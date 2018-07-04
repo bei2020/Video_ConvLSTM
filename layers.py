@@ -17,6 +17,7 @@ class ConvLSTM:
         self._cell = None
         self.height=shape[1]
         self.width=shape[2]
+        # self.batch=shape[0]
 
         self.batch_norm = batch_norm
         self.dropout_rate = dropout_rate
@@ -38,7 +39,7 @@ class ConvLSTM:
         return tf.Variable(kern, name=name)
 
 
-    def _create_bias(self, shape, value=0.0, name=None):
+    def _create_bias(self, shape, value=0.0, name='bias'):
         bias = tf.constant(value, shape=shape)
 
         if name is None:
@@ -47,22 +48,23 @@ class ConvLSTM:
             return tf.Variable(bias, name=name)
 
     def _conv2d(self, input_tensor, weight, stride, use_bias=False, use_batch_norm=False, pre_name=""):
-        output = tf.nn.conv2d(input_tensor, weight, strides=stride, padding="SAME",
-                              name=pre_name + "_conv")
+        output = tf.nn.conv2d(input_tensor, weight, strides=stride, padding="SAME", name=pre_name+'_conv')
 
         if use_bias:
-            bias = self._create_bias([weight.shape[-1]], name="conv_B")
+            bias = self._create_bias([weight.shape[-1]],name=pre_name+'_b')
             output = tf.add(output, bias, name=pre_name + "_add")
         if use_batch_norm:
             output = tf.layers.batch_normalization(output, training=self.is_training, name=pre_name+'_BN')
         return output
 
-    def output(self,name,out_features,x=None,h=None,in_features=0,in_features_h=0):
+    def output(self,name,out_features,x=None,h=None,in_features=0,in_features_h=0,reuse=False):
         """Return hidden state and cell.
             x: input at step t, h: hidden state of last layer, c: cell of last sequence
         """
         assert (x is not None or h is not None)
-        with tf.name_scope(name):
+        print('re'*10,reuse)
+        stride=[1, self.cnn_stride, self.cnn_stride, 1]
+        with tf.variable_scope(name,reuse=reuse):
             Wxi=self._create_weight([self.cnn_size, self.cnn_size, in_features, out_features], stddev=self.weight_dev,
                                              kname=self.weight_init, name='conv_Wxi')
             Whi=self._create_weight([self.cnn_size, self.cnn_size, in_features_h, out_features], stddev=self.weight_dev,
@@ -85,27 +87,33 @@ class ConvLSTM:
                                     kname=self.weight_init, name='conv_Wcf')
             Wco=self._create_weight([1,self.height , self.width, out_features], stddev=self.weight_dev,
                                     kname=self.weight_init, name='conv_Wco')
-
-            stride=[1, self.cnn_stride, self.cnn_stride, 1]
-            # print('x'*10,x.shape,'\\n Wxi',Wxi.shape,'\\n h ',h.shape,Whi.shape,'\\n c ',Wci.shape)
-            if h is None:
-                # print('x'*20,x.get_shape().as_list(),in_features,out_features)
-                self._input=tf.sigmoid(self._conv2d(x,Wxi,stride=stride,pre_name='Wxi',use_bias=True)+Wci*self._cell)
-                self._forget=tf.sigmoid(self._conv2d(x,Wxf,stride=stride,pre_name='Wxf',use_bias=True)+Wcf*self._cell)
-                self._cell=self._forget*self._cell+self._input*tf.tanh(self._conv2d(x,Wxc,stride=stride,pre_name='Wxc',use_bias=True))
-                self._output=tf.sigmoid(self._conv2d(x,Wxo,stride=stride,pre_name='Wxo',use_bias=True)+Wco*self._cell)
-            elif x is None:
-                # print('h'*20,h.get_shape().as_list(),in_features_h,out_features)
-                self._input=tf.sigmoid(self._conv2d(h,Whi,use_bias=True,stride=stride,pre_name='Whi')+Wci*self._cell)
-                self._forget=tf.sigmoid(self._conv2d(h,Whf,use_bias=True,stride=stride,pre_name='Whf')+Wcf*self._cell)
-                self._cell=self._forget*self._cell+self._input*tf.tanh(self._conv2d(h,Whc,stride=stride,use_bias=True,pre_name='Whc'))
-                self._output=tf.sigmoid(self._conv2d(h,Who,use_bias=True,stride=stride,pre_name='Who')+Wco*self._cell)
-            else:
-                # print('xh'*20,x.get_shape().as_list(),in_features,out_features,in_features_h)
+            if not reuse and h is None:
+                print('xr'*20,x.get_shape().as_list(),in_features,out_features,in_features_h)
+                h=tf.zeros((1,self.height,self.width,out_features))
                 self._input=tf.sigmoid(self._conv2d(x,Wxi,stride=stride,pre_name='Wxi')+self._conv2d(h,Whi,use_bias=True,stride=stride,pre_name='Whi')+Wci*self._cell)
                 self._forget=tf.sigmoid(self._conv2d(x,Wxf,stride=stride,pre_name='Wxf')+self._conv2d(h,Whf,use_bias=True,stride=stride,pre_name='Whf')+Wcf*self._cell)
                 self._cell=self._forget*self._cell+self._input*tf.tanh(self._conv2d(x,Wxc,stride=stride,pre_name='Wxc')+self._conv2d(h,Whc,stride=stride,use_bias=True,pre_name='Whc'))
                 self._output=tf.sigmoid(self._conv2d(x,Wxo,stride=stride,pre_name='Wxo')+self._conv2d(h,Who,use_bias=True,stride=stride,pre_name='Who')+Wco*self._cell)
+            else:
+                # print('x'*10,x.shape,'\\n Wxi',Wxi.shape,'\\n h ',h.shape,Whi.shape,'\\n c ',Wci.shape)
+                if h is None:
+                    # print('x'*20,x.get_shape().as_list(),in_features,out_features)
+                    self._input=tf.sigmoid(self._conv2d(x,Wxi,stride=stride,pre_name='Wxi',use_bias=True)+Wci*self._cell)
+                    self._forget=tf.sigmoid(self._conv2d(x,Wxf,stride=stride,pre_name='Wxf',use_bias=True)+Wcf*self._cell)
+                    self._cell=self._forget*self._cell+self._input*tf.tanh(self._conv2d(x,Wxc,stride=stride,pre_name='Wxc',use_bias=True))
+                    self._output=tf.sigmoid(self._conv2d(x,Wxo,stride=stride,pre_name='Wxo',use_bias=True)+Wco*self._cell)
+                elif x is None:
+                    # print('h'*20,h.get_shape().as_list(),in_features_h,out_features)
+                    self._input=tf.sigmoid(self._conv2d(h,Whi,use_bias=True,stride=stride,pre_name='Whi')+Wci*self._cell)
+                    self._forget=tf.sigmoid(self._conv2d(h,Whf,use_bias=True,stride=stride,pre_name='Whf')+Wcf*self._cell)
+                    self._cell=self._forget*self._cell+self._input*tf.tanh(self._conv2d(h,Whc,stride=stride,use_bias=True,pre_name='Whc'))
+                    self._output=tf.sigmoid(self._conv2d(h,Who,use_bias=True,stride=stride,pre_name='Who')+Wco*self._cell)
+                else:
+                    # print('xh'*20,x.get_shape().as_list(),in_features,out_features,in_features_h)
+                    self._input=tf.sigmoid(self._conv2d(x,Wxi,stride=stride,pre_name='Wxi')+self._conv2d(h,Whi,use_bias=True,stride=stride,pre_name='Whi')+Wci*self._cell)
+                    self._forget=tf.sigmoid(self._conv2d(x,Wxf,stride=stride,pre_name='Wxf')+self._conv2d(h,Whf,use_bias=True,stride=stride,pre_name='Whf')+Wcf*self._cell)
+                    self._cell=self._forget*self._cell+self._input*tf.tanh(self._conv2d(x,Wxc,stride=stride,pre_name='Wxc')+self._conv2d(h,Whc,stride=stride,use_bias=True,pre_name='Whc'))
+                    self._output=tf.sigmoid(self._conv2d(x,Wxo,stride=stride,pre_name='Wxo')+self._conv2d(h,Who,use_bias=True,stride=stride,pre_name='Who')+Wco*self._cell)
             h=self._output*tf.tanh(self._cell)
 
             return  h
@@ -137,7 +145,7 @@ class FinalLayer:
         return tf.Variable(kern, name=name)
 
 
-    def _create_bias(self, shape, value=0.0, name=None):
+    def _create_bias(self, shape, value=0.0, name='bias'):
         bias = tf.constant(value, shape=shape)
 
         if name is None:
@@ -146,21 +154,20 @@ class FinalLayer:
             return tf.Variable(bias, name=name)
 
     def _conv2d(self, input_tensor, weight, stride, use_bias=False, pre_name=""):
-        output = tf.nn.conv2d(input_tensor, weight, strides=stride, padding="SAME",
-                              name=pre_name + "_conv")
+        output = tf.nn.conv2d(input_tensor, weight, strides=stride, padding="SAME", name=pre_name+'_conv')
 
         if use_bias:
-            bias = self._create_bias([weight.shape[-1]], name="conv_B")
+            bias = self._create_bias([weight.shape[-1]], name=pre_name + "_b")
             output = tf.add(output, bias, name=pre_name + "_add")
         if self.batch_norm:
             output = tf.layers.batch_normalization(output, training=self.is_training, name=pre_name+'_BN')
         return output
 
-    def output(self, name, input,  in_features, out_features):
+    def output(self, name, input,  in_features, out_features,reuse=False):
         """Return output tensor of one unit hidden layer and weight, bias"""
-        with tf.name_scope(name):
+        with tf.variable_scope(name,reuse=reuse):
             # print('f'*20,input.get_shape().as_list(),in_features,out_features)
-            w=self._create_weight([self.cnn_size,self.cnn_size,in_features,out_features])
-            out=self._conv2d(input,w,[1, self.cnn_stride, self.cnn_stride, 1],pre_name=name)
+            w=self._create_weight([self.cnn_size,self.cnn_size,in_features,out_features],name='Wfn')
+            out=self._conv2d(input,w,[1, self.cnn_stride, self.cnn_stride, 1],pre_name='convfn')
             return out
 

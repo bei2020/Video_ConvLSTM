@@ -4,6 +4,7 @@ import tensorflow as tf
 import time
 import os
 from settings import ROOT
+import numpy as np
 
 
 class Trainer:
@@ -32,6 +33,10 @@ class Trainer:
         self.save_weights=flags.save_weights
         self.save_meta_data=flags.save_meta_data
 
+        util.set_logging(flags.log_filename, stream_log_level=logging.INFO, file_log_level=logging.INFO,
+                         tf_log_level=tf.logging.WARN)
+        logging.info("%s [%s]" % (util.get_now_date(), self.model.name))
+
         self.build_summary_saver()
         self.init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
         self.sess.run(self.init)
@@ -56,7 +61,7 @@ class Trainer:
                 self.lr*=self.lr_decay
             if self.nbatch%self.epoch_evaluate==0:
                 loss=self.evaluate()
-                self.print_status(loss)
+                self.print_status(loss,log=True)
 
         self.test()
         self.save_model()
@@ -69,15 +74,17 @@ class Trainer:
     def test(self):
         feed_dict = {self.model.x: self.data.x_test,self.model.y:self.data.y_test,self.model.is_training:0}
         y_,loss=self.sess.run((self.model.y_,self.model.loss),feed_dict=feed_dict)
+        # print(y_[0,0,:2])
         util.array2image(y_,os.path.join(ROOT,self.output_dir),'predict')
         util.array2image(self.data.y_test,os.path.join(ROOT,self.output_dir),'truth')
-        logging.info("\n=== [%s] Loss:%f ===" % ( self.data.test_path, loss))
+        logging.info("\n=== [%s] Loss:%f ===" % ( self.data.test_path, loss/self.batch_size))
 
 
     def print_status(self, loss,log=False):
         processing_time = (time.time() - self.start_time) / self.nbatch
         line_a = "%s Step:%s Loss:%f (Training Loss:%0.3f)" % (
-            util.get_now_date(), "{:,}".format(self.nbatch), loss, self.total_loss/self.nbatch)
+            util.get_now_date(), "{:,}".format(self.nbatch), loss, self.total_loss/(self.nbatch))
+            # util.get_now_date(), "{:,}".format(self.nbatch), loss/self.batch_size, self.total_loss/(self.batch_size*self.nbatch))
         estimated = processing_time * (self.total_batch - self.nbatch)
         h = estimated // (60 * 60)
         estimated -= h * 60 * 60
@@ -88,9 +95,8 @@ class Trainer:
         if log:
             logging.info(line_a)
             logging.info(line_b)
-        else:
-            print(line_a)
-            print(line_b)
+        print(line_a)
+        print(line_b)
 
     def save_model(self, name="", trial=0, log=False):
         if name == "":
@@ -112,4 +118,3 @@ class Trainer:
             self.test_writer = tf.summary.FileWriter(self.tf_log_dir + "/test")
 
         self.saver = tf.train.Saver(max_to_keep=None)
-

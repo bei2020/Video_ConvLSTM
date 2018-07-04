@@ -1,6 +1,7 @@
 import tensorflow as tf
 from layers import ConvLSTM,FinalLayer
 from util import util
+import numpy as np
 
 class ConvLSTMNetwork:
     """ConvLSTM network for frame prediction"""
@@ -41,44 +42,53 @@ class ConvLSTMNetwork:
         shape=self.x.get_shape().as_list()
         # batch,height,width,channel
         shape=(shape[0],shape[2],shape[3],shape[4])
-        for k in range(self.layers):
+        for k in range(self.layers-1):
+        # for k in range(self.layers):
             self.encoding[k]=ConvLSTM(self.cnn_size,shape,batch_norm=self.batch_norm,is_training=self.is_training)
             self.encoding[k]._cell = tf.zeros([1,shape[1],shape[2],self.hidden_features[k]], dtype=tf.float32)
             self.forecast[k]=ConvLSTM(self.cnn_size,shape,batch_norm=self.batch_norm,is_training=self.is_training)
             self.forecast[k]._cell = tf.zeros([1,shape[1],shape[2],self.hidden_features[k]], dtype=tf.float32)
-        finl=FinalLayer(1,batch_norm=self.batch_norm,is_training=self.is_training)
+        final=FinalLayer(1,batch_norm=self.batch_norm,is_training=self.is_training)
 
         n_in_feature=shape[-1]
         self.y_=[None]*self.nseq
         # generate one frame for each input frame, share convLSTM layer between frames, link 1st layer hidden state between frames
         H1=None # 1st layer
         total_out_feat=sum(self.hidden_features)
+        reuse=False
         for t in range(self.nseq):
-            print('t'*10,t)
-            # encoding
-            h=self.encoding[0].output('enco_conl1',self.hidden_features[0],x=self.x[:,t],h=H1,in_features=n_in_feature,in_features_h=self.hidden_features[0])
-            in_feat=self.hidden_features[0]
-            H1=h
-            for n in range(1,self.layers):
-                # print('i'*15,n,in_feat,self.hidden_features[n])
-                h=self.encoding[n].output('enco_conl%d'%(n+1),self.hidden_features[n],h=h,in_features_h=in_feat)
-                in_feat=self.hidden_features[n]
+            # reuse=(True,False)[self.y_[0] is None]
+            print('r'*10,reuse)
+            with tf.variable_scope('CL',reuse=reuse) as scope:
+                # encoding
+                print('s'*20,scope.name)
+                h=self.encoding[0].output('enco_conl1',self.hidden_features[0],x=self.x[:,t],h=H1,in_features=n_in_feature,
+                                          in_features_h=self.hidden_features[0],reuse=reuse)
+                in_feat=self.hidden_features[0]
+                H1=h
+                for n in range(1,self.layers-1):
+                # for n in range(1,self.layers):
+                    # print('i'*15,n,in_feat,self.hidden_features[n])
+                    h=self.encoding[n].output('enco_conl%d'%(n+1),self.hidden_features[n],h=h,in_features_h=in_feat,reuse=reuse)
+                    in_feat=self.hidden_features[n]
 
-            # forecasting
-            H=[None]*self.layers
-            for k in range(self.layers):
-                h=self.forecast[k].output('fore_conl%d'%(k+1),self.hidden_features[k],h=h,in_features_h=in_feat)
-                in_feat=self.hidden_features[k]
-                H[k]=h
-            with tf.variable_scope("Concat"):
-                H_concat=tf.concat(H,3,name='H_concat')
-
-            h=finl.output('fina_conv',H_concat,total_out_feat,n_in_feature)
-            self.y_[t]=h
+                # # forecasting
+                # H=[None]*self.layers
+                # for k in range(self.layers):
+                #     h=self.forecast[k].output('fore_conl%d'%(k+1),self.hidden_features[k],h=h,in_features_h=in_feat)
+                #     in_feat=self.hidden_features[k]
+                #     H[k]=h
+                # with tf.variable_scope("Concat"):
+                #     H_concat=tf.concat(H,3,name='H_concat')
+                #
+                # h=final.output('fina_conv',H_concat,total_out_feat,n_in_feature)
+                h=final.output('fina_conv',h,64,n_in_feature,reuse=reuse)
+                self.y_[t]=h
+            reuse=True
         self.y_ = tf.transpose(tf.stack(self.y_), [1,0,2,3,4])
 
     def build_optimizer(self):
-        self.loss=tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.y_,labels=self.y))
+        self.loss=tf.nn.l2_loss(self.y_-self.y)
         if self.batch_norm:
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
             with tf.control_dependencies(update_ops):

@@ -48,12 +48,12 @@ def print_num_of_total_parameters(output_detail=False, output_to_logging=False):
             parameters_string += ("%s %d, " % (variable.name, variable_parameters))
         else:
             parameters_string += ("%s %s=%d, " % (variable.name, str(shape), variable_parameters))
+    logging.info(
+        "Total %d variables, %s params" % (len(tf.trainable_variables()), "{:,}".format(total_parameters)))
 
     if output_to_logging:
         if output_detail:
             logging.info(parameters_string)
-        logging.info(
-            "Total %d variables, %s params" % (len(tf.trainable_variables()), "{:,}".format(total_parameters)))
     else:
         if output_detail:
             print(parameters_string)
@@ -62,3 +62,18 @@ def print_num_of_total_parameters(output_detail=False, output_to_logging=False):
 def get_now_date():
     d = datetime.datetime.today()
     return "%s/%s/%s %s:%s:%s" % (d.year, d.month, d.day, d.hour, d.minute, d.second)
+
+def set_logging(filename, stream_log_level, file_log_level, tf_log_level):
+    stream_log = logging.StreamHandler()
+    stream_log.setLevel(stream_log_level)
+
+    file_log = logging.FileHandler(filename=filename)
+    file_log.setLevel(file_log_level)
+
+    logger = logging.getLogger()
+    logger.handlers = []
+    logger.addHandler(stream_log)
+    logger.addHandler(file_log)
+    logger.setLevel(min(stream_log_level, file_log_level))
+
+    tf.logging.set_verbosity(tf_log_level)
