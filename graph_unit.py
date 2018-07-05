@@ -87,4 +87,5 @@ class FinalLayer:
         self.receptive_fields = 0
 
     def output(self, x,out_features):
-        return tf.layers.conv2d(x,out_features,self.cnn_size,self.cnn_stride,padding='SAME',name='finl_predict')
+        h=tf.layers.conv2d(x,out_features,self.cnn_size,self.cnn_stride,padding='SAME',name='finl_predict')
+        return h

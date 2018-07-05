@@ -77,7 +77,7 @@ def generate_moving_mnist(shape=(64,64), seq_len=30, seqs=10000, num_sz=28, nums
             dataset[seq_idx*seq_len+frame_idx] = (canvas * 255).astype(np.uint8).clip(0,255)
     return dataset
 
-def main(dest, filetype='npz', frame_size=64, seq_len=20, seqs=300, num_sz=28, nums_per_image=2):
+def main(dest, filetype='npz', frame_size=64, seq_len=20, seqs=10000, num_sz=28, nums_per_image=2):
     dat = generate_moving_mnist(shape=(frame_size,frame_size), seq_len=seq_len, seqs=seqs, \
                                 num_sz=num_sz, nums_per_image=nums_per_image)
     n = seqs * seq_len

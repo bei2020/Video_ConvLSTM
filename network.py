@@ -1,8 +1,6 @@
 import tensorflow as tf
-# from layers import ConvLSTM, FinalLayer
 from graph_unit import ConvLSTM,FinalLayer
 from util import util
-import numpy as np
 
 
 class ConvLSTMNetwork:

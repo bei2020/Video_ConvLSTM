@@ -19,6 +19,7 @@ def main(not_parsed_args):
     sess = tf.Session(config=config, graph=md.graph)
     print('Sess created.')
     trainer=Trainer(DL,md,sess,FLAGS)
+    trainer.load_model()
     trainer.train()
     sess.close()
 

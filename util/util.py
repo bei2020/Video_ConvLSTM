@@ -22,16 +22,18 @@ def preprocess_data():
             os.rename(os.path.join(DATA_DIR, f), os.path.join(DATA_DIR, fs[0], fs[1], fs[2]))
 
 
-def array2image(dat,dest,post=''):
+def array2image(dat,dest,post='',step=0):
     b,s,h,w,_=dat.shape
     dat=dat.reshape((b,s,h*FLAGS.patch_size,w*FLAGS.patch_size))
     _,_,h,w=dat.shape
-    if not os.path.exists(dest):
-        os.makedirs(dest)
+    if not os.path.exists(os.path.join(dest,str(step))):
+        os.makedirs(os.path.join(dest,str(step)))
     for i in range(b):
+        if not os.path.exists(os.path.join(dest,str(step),str(i+1))):
+            os.makedirs(os.path.join(dest,str(step),str(i+1)))
         for j in range(s):
             image = misc.toimage(dat[i,j].astype(np.uint8), cmin=0, cmax=255)  # to avoid range rescaling
-            misc.imsave(os.path.join(dest, 'batch{}seq{}_{}.jpg'.format(i+1,j+1,post)), image)
+            misc.imsave(os.path.join(dest,str(step),str(i+1), '{}_{}.jpg'.format(post,j+1)), image)
 
 def print_num_of_total_parameters(output_detail=False, output_to_logging=False):
     total_parameters = 0
