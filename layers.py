@@ -6,6 +6,8 @@ class ConvLSTM:
   
     Reference:
       Xingjian, S. H. I., et al. "Convolutional LSTM network: A machine learning approach for precipitation nowcasting." Advances in Neural Information Processing Systems. 2015.
+      
+    ! Caution: tf.Variable must be replaced with tf.get_variable for reuse under a name scope.
     """
 
     def __init__(self, cnn_size,shape,hidden_feature, cnn_stride=1, weight_init='', weight_dev=1.0, batch_norm=False, dropout_rate=1, is_training=False,layer_name=''):

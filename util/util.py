@@ -31,7 +31,7 @@ def array2image(dat,dest,post=''):
     for i in range(b):
         for j in range(s):
             image = misc.toimage(dat[i,j].astype(np.uint8), cmin=0, cmax=255)  # to avoid range rescaling
-            misc.imsave(os.path.join(dest, 'batch{}seq{}_{}.jpg'.format(i,j,post)), image)
+            misc.imsave(os.path.join(dest, 'batch{}seq{}_{}.jpg'.format(i+1,j+1,post)), image)
 
 def print_num_of_total_parameters(output_detail=False, output_to_logging=False):
     total_parameters = 0
